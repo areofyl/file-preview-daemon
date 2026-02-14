@@ -1,0 +1,14 @@
+# file-preview daemon configuration
+# Copy to ~/.config/file-preview/config.toml
+
+# directories to watch for new files
+watch_dirs = ["~/Pictures/Screenshots", "~/Downloads"]
+
+# RTMIN+N signal to poke waybar on new file
+signal_number = 8
+
+# auto-dismiss the widget after N seconds
+dismiss_seconds = 10
+
+# ignore files with these suffixes (partial downloads, etc.)
+ignore_suffixes = [".part", ".crdownload", ".tmp"]
