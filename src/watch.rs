@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::state::{write_state, FileState};
+use crate::state::{read_history, write_history, FileState};
 use anyhow::Result;
 use inotify::{EventMask, Inotify, WatchMask};
 use std::collections::{HashMap, VecDeque};
@@ -58,13 +58,22 @@ fn signal_waybar(sig: u8) {
         .output();
 }
 
-fn clear_state(cfg: &Config) {
-    let _ = std::fs::remove_file(Config::state_file());
+fn menu_lock_exists() -> bool {
+    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
+    PathBuf::from(runtime).join("glance-menu.lock").exists()
+}
+
+fn signal_dismiss(cfg: &Config) {
+    if menu_lock_exists() {
+        return; // menu is open, don't dismiss
+    }
     signal_waybar(cfg.signal_number);
+    // clear cached menu position so it re-centers on next click
+    let runtime = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".into());
+    let _ = std::fs::remove_file(PathBuf::from(runtime).join("glance-menu-pos"));
 }
 
 pub fn run(cfg: &Config) -> Result<()> {
-    let state_file = Config::state_file();
     let pid_file = Config::pid_file();
 
     std::fs::write(&pid_file, std::process::id().to_string())?;
@@ -72,7 +81,6 @@ pub fn run(cfg: &Config) -> Result<()> {
     // cleanup on ctrl-c / SIGTERM
     let sig_num = cfg.signal_number;
     ctrlc::set_handler(move || {
-        let _ = std::fs::remove_file(Config::state_file());
         let _ = std::fs::remove_file(Config::pid_file());
         signal_waybar(sig_num);
         std::process::exit(0);
@@ -105,7 +113,7 @@ pub fn run(cfg: &Config) -> Result<()> {
         if let Some(at) = dismiss_at {
             if now_secs() >= at {
                 dismiss_at = None;
-                clear_state(cfg);
+                signal_dismiss(cfg);
             }
         }
 
@@ -158,7 +166,10 @@ pub fn run(cfg: &Config) -> Result<()> {
             seen.insert(path_str);
 
             if let Ok(st) = FileState::new(path.clone()) {
-                let _ = write_state(&state_file, &st);
+                let state_file = Config::state_file();
+                let mut history = read_history(&state_file);
+                history.push(st, cfg.history_size);
+                let _ = write_history(&state_file, &history);
                 signal_waybar(cfg.signal_number);
                 dismiss_at = Some(now_secs() + cfg.dismiss_seconds);
                 eprintln!("new: {}", path.display());
