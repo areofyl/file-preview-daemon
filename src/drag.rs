@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::state::read_state;
+use crate::state::read_history;
 use anyhow::Result;
 use gtk4::gdk;
 use gtk4::gio;
@@ -9,22 +9,24 @@ use gtk4_layer_shell::{Edge, Layer, LayerShell};
 use std::process::Command;
 use std::time::Duration;
 
+const OVERLAY_W: i32 = 200;
+
 pub fn run(cfg: &Config) -> Result<()> {
-    let state_file = Config::state_file();
-    let Some(st) = read_state(&state_file, cfg.dismiss_seconds) else {
+    let history = read_history(&Config::state_file());
+    let Some(st) = history.current().filter(|e| !e.is_expired(cfg.dismiss_seconds)) else {
         return Ok(());
     };
     if !st.path.exists() {
         return Ok(());
     }
-
-    let cursor = cursor_pos().unwrap_or((800, 0));
-    let monitor_info = find_monitor_at(cursor.0, cursor.1);
-    let bar_height = cfg.bar_height;
     let filepath = st.path.clone();
 
+    let (cursor_x, cursor_y) = cursor_pos().unwrap_or((800, 0));
+    let monitor_info = find_monitor_at(cursor_x, cursor_y);
+    let bar_height = cfg.bar_height;
+
     let app = gtk4::Application::builder()
-        .application_id("dev.file-preview.drag")
+        .application_id("dev.glance.drag")
         .build();
 
     app.connect_activate(move |app| {
@@ -35,8 +37,8 @@ pub fn run(cfg: &Config) -> Result<()> {
         win.set_anchor(Edge::Top, true);
         win.set_anchor(Edge::Left, true);
 
-        // pin to the correct monitor
-        if let Some((ref mon_name, mon_x, _mon_y)) = monitor_info {
+        // pin to correct monitor and use monitor-local coords
+        if let Some((ref mon_name, mon_x, _)) = monitor_info {
             let display = gdk::Display::default().unwrap();
             let monitors = display.monitors();
             for i in 0..monitors.n_items() {
@@ -48,22 +50,16 @@ pub fn run(cfg: &Config) -> Result<()> {
                     }
                 }
             }
-            // use monitor-local X for margin
-            let local_x = cursor.0 - mon_x;
-            let overlay_w = 200;
-            let margin_left = (local_x - overlay_w / 2).max(0);
-            win.set_margin(Edge::Left, margin_left);
+            let local_x = cursor_x - mon_x;
+            win.set_margin(Edge::Left, (local_x - OVERLAY_W / 2).max(0));
         } else {
-            let overlay_w = 200;
-            let margin_left = (cursor.0 - overlay_w / 2).max(0);
-            win.set_margin(Edge::Left, margin_left);
+            win.set_margin(Edge::Left, (cursor_x - OVERLAY_W / 2).max(0));
         }
-
         win.set_margin(Edge::Top, 0);
         win.set_exclusive_zone(-1);
-        win.set_namespace(Some("file-preview-drag"));
-        win.set_keyboard_mode(gtk4_layer_shell::KeyboardMode::OnDemand);
+        win.set_namespace(Some("glance-drag"));
 
+        // near-invisible surface so Wayland routes pointer events
         let css = gtk4::CssProvider::new();
         #[allow(deprecated)]
         css.load_from_data(
@@ -76,18 +72,17 @@ pub fn run(cfg: &Config) -> Result<()> {
             gtk4::STYLE_PROVIDER_PRIORITY_USER,
         );
 
-        let overlay_w = 200;
-        let label = gtk4::Label::new(Some("drag"));
-        label.set_size_request(overlay_w, bar_height);
+        let label = gtk4::Label::new(Some(" "));
+        label.set_size_request(OVERLAY_W, bar_height);
 
-        // drag source
+        // native GTK drag source
         let ds = gtk4::DragSource::new();
         ds.set_actions(gdk::DragAction::COPY);
 
         let file = gio::File::for_path(&filepath);
         let uri = format!("{}\r\n", file.uri());
 
-        ds.connect_prepare(move |_src, _x, _y| {
+        ds.connect_prepare(move |_, _, _| {
             Some(gdk::ContentProvider::for_bytes(
                 "text/uri-list",
                 &glib::Bytes::from(uri.as_bytes()),
@@ -95,9 +90,9 @@ pub fn run(cfg: &Config) -> Result<()> {
         });
 
         let app_ref = app.clone();
-        ds.connect_drag_end(move |_src, _drag, _delete| {
+        ds.connect_drag_end(move |_, _, _| {
             let a = app_ref.clone();
-            glib::timeout_add_local_once(Duration::from_millis(200), move || {
+            glib::timeout_add_local_once(Duration::from_millis(500), move || {
                 a.quit();
             });
         });
@@ -109,7 +104,7 @@ pub fn run(cfg: &Config) -> Result<()> {
         // escape to dismiss
         let key_ctl = gtk4::EventControllerKey::new();
         let app_ref = app.clone();
-        key_ctl.connect_key_pressed(move |_ctl, keyval, _code, _state| {
+        key_ctl.connect_key_pressed(move |_, keyval, _, _| {
             if keyval == gdk::Key::Escape {
                 app_ref.quit();
                 glib::Propagation::Stop
@@ -144,7 +139,6 @@ fn cursor_pos() -> Option<(i32, i32)> {
     }
 }
 
-/// Returns (monitor_name, x_offset, y_offset) for the monitor containing the given global coords.
 fn find_monitor_at(gx: i32, gy: i32) -> Option<(String, i32, i32)> {
     let out = Command::new("hyprctl")
         .args(["monitors", "-j"])
