@@ -245,13 +245,11 @@ pub fn run(cfg: &Config) -> Result<()> {
                 &glib::Bytes::from(uri.as_bytes()),
             ))
         });
-        {
-            let w = win.clone();
-            ds.connect_drag_end(move |_, _, _| {
-                let w2 = w.clone();
-                glib::timeout_add_local_once(Duration::from_millis(200), move || w2.close());
+        ds.connect_drag_end(move |_, _, _| {
+            glib::timeout_add_local_once(Duration::from_millis(200), move || {
+                std::process::exit(0);
             });
-        }
+        });
         btn_drag.add_controller(ds);
         actions.append(&btn_drag);
 
@@ -259,28 +257,22 @@ pub fn run(cfg: &Config) -> Result<()> {
         let btn_open = gtk4::Button::with_label("Open");
         btn_open.add_css_class("menu-action");
         let p = filepath.clone();
-        {
-            let w = win.clone();
-            btn_open.connect_clicked(move |_| {
-                let _ = Command::new("xdg-open").arg(&p).spawn();
-                std::process::exit(0);
-            });
-        }
+        btn_open.connect_clicked(move |_| {
+            let _ = Command::new("xdg-open").arg(&p).spawn();
+            std::process::exit(0);
+        });
         actions.append(&btn_open);
 
         // Copy
         let btn_copy = gtk4::Button::with_label("Copy");
         btn_copy.add_css_class("menu-action");
         let p = filepath.clone();
-        {
-            let w = win.clone();
-            btn_copy.connect_clicked(move |_| {
-                let _ = Command::new("wl-copy")
-                    .arg(p.to_string_lossy().as_ref())
-                    .output();
-                std::process::exit(0);
-            });
-        }
+        btn_copy.connect_clicked(move |_| {
+            let _ = Command::new("wl-copy")
+                .arg(p.to_string_lossy().as_ref())
+                .output();
+            std::process::exit(0);
+        });
         actions.append(&btn_copy);
 
         container.append(&actions);
@@ -292,12 +284,9 @@ pub fn run(cfg: &Config) -> Result<()> {
         header.append(&spacer);
         let btn_close = gtk4::Button::with_label("\u{2715}");
         btn_close.add_css_class("menu-close");
-        {
-            let w = win.clone();
-            btn_close.connect_clicked(move |_| {
-                std::process::exit(0);
-            });
-        }
+        btn_close.connect_clicked(move |_| {
+            std::process::exit(0);
+        });
         header.append(&btn_close);
 
         let outer = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
@@ -310,26 +299,19 @@ pub fn run(cfg: &Config) -> Result<()> {
 
         // escape to dismiss
         let key_ctl = gtk4::EventControllerKey::new();
-        {
-            let w = win.clone();
-            key_ctl.connect_key_pressed(move |_, keyval, _, _| {
-                if keyval == gdk::Key::Escape {
-                    std::process::exit(0);
-                    glib::Propagation::Stop
-                } else {
-                    glib::Propagation::Proceed
-                }
-            });
-        }
+        key_ctl.connect_key_pressed(move |_, keyval, _, _| {
+            if keyval == gdk::Key::Escape {
+                std::process::exit(0);
+            } else {
+                glib::Propagation::Proceed
+            }
+        });
         win.add_controller(key_ctl);
 
         // auto-dismiss 8s
-        {
-            let w = win.clone();
-            glib::timeout_add_local_once(Duration::from_secs(8), move || {
-                std::process::exit(0);
-            });
-        }
+        glib::timeout_add_local_once(Duration::from_secs(8), move || {
+            std::process::exit(0);
+        });
     });
 
     app.run_with_args::<&str>(&[]);
