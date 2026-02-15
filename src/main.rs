@@ -1,6 +1,7 @@
 mod config;
 mod copy;
 mod drag;
+mod init;
 mod state;
 mod status;
 mod watch;
@@ -25,10 +26,17 @@ enum Commands {
     Copy,
     /// Launch drag-and-drop overlay at cursor
     Drag,
+    /// Set up config, Waybar module, CSS, and Hyprland autostart
+    Init,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    if matches!(cli.command, Commands::Init) {
+        return init::run();
+    }
+
     let cfg = config::Config::load()?;
 
     match cli.command {
@@ -36,5 +44,6 @@ fn main() -> Result<()> {
         Commands::Status => status::run(&cfg),
         Commands::Copy => copy::run(&cfg),
         Commands::Drag => drag::run(&cfg),
+        Commands::Init => unreachable!(),
     }
 }
