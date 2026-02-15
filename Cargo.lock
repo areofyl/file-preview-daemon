@@ -231,23 +231,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "file-preview"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "ctrlc",
- "gtk4",
- "gtk4-layer-shell",
- "inotify",
- "libc",
- "serde",
- "serde_json",
- "shellexpand",
- "toml 0.8.23",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -427,6 +410,23 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "glance"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ctrlc",
+ "gtk4",
+ "gtk4-layer-shell",
+ "inotify",
+ "libc",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "toml 0.8.23",
 ]
 
 [[package]]
