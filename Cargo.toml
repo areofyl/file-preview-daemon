@@ -1,12 +1,12 @@
 [package]
-name = "file-preview"
-version = "0.1.0"
+name = "glance"
+version = "0.2.0"
 edition = "2021"
-description = "File preview daemon for Waybar — shows new files and lets you drag-and-drop them"
+description = "A file clipboard for Wayland — shows new files, thumbnails, drag-and-drop"
 license = "MIT"
 
 [[bin]]
-name = "file-preview"
+name = "glance"
 path = "src/main.rs"
 
 [dependencies]
