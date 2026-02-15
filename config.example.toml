@@ -12,3 +12,6 @@ dismiss_seconds = 10
 
 # ignore files with these suffixes (partial downloads, etc.)
 ignore_suffixes = [".part", ".crdownload", ".tmp"]
+
+# pixels from top of screen to below waybar (popup appears here)
+bar_height = 57
