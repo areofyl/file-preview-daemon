@@ -63,9 +63,6 @@ impl HistoryState {
         }
     }
 
-    pub fn active_count(&self, dismiss_secs: u64) -> usize {
-        self.entries.iter().filter(|e| !e.is_expired(dismiss_secs)).count()
-    }
 }
 
 pub fn read_history(state_file: &Path) -> HistoryState {
@@ -88,10 +85,4 @@ pub fn write_history(state_file: &Path, state: &HistoryState) -> Result<()> {
     let json = serde_json::to_string(state)?;
     std::fs::write(state_file, json)?;
     Ok(())
-}
-
-/// Convenience: read current non-expired entry
-pub fn read_state(state_file: &Path, dismiss_secs: u64) -> Option<FileState> {
-    let history = read_history(state_file);
-    history.current().filter(|e| !e.is_expired(dismiss_secs)).cloned()
 }
