@@ -1,5 +1,5 @@
-# file-preview daemon configuration
-# Copy to ~/.config/file-preview/config.toml
+# glance configuration
+# Copy to ~/.config/glance/config.toml
 
 # directories to watch for new files
 watch_dirs = ["~/Pictures/Screenshots", "~/Downloads"]
@@ -15,3 +15,6 @@ ignore_suffixes = [".part", ".crdownload", ".tmp"]
 
 # pixels from top of screen to below waybar (popup appears here)
 bar_height = 57
+
+# number of files to remember in history
+history_size = 5
