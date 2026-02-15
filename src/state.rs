@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileState {
     pub path: PathBuf,
     pub name: String,
@@ -34,18 +34,64 @@ impl FileState {
     }
 }
 
-pub fn read_state(state_file: &Path, dismiss_secs: u64) -> Option<FileState> {
-    let content = std::fs::read_to_string(state_file).ok()?;
-    let state: FileState = serde_json::from_str(&content).ok()?;
-    if state.is_expired(dismiss_secs) {
-        None
-    } else {
-        Some(state)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HistoryState {
+    pub entries: Vec<FileState>,
+    pub selected: usize,
+}
+
+impl HistoryState {
+    pub fn current(&self) -> Option<&FileState> {
+        self.entries.get(self.selected)
+    }
+
+    pub fn push(&mut self, entry: FileState, max_size: usize) {
+        self.entries.insert(0, entry);
+        self.entries.truncate(max_size);
+        self.selected = 0;
+    }
+
+    pub fn select_prev(&mut self) {
+        if self.selected + 1 < self.entries.len() {
+            self.selected += 1;
+        }
+    }
+
+    pub fn select_next(&mut self) {
+        if self.selected > 0 {
+            self.selected -= 1;
+        }
+    }
+
+    pub fn active_count(&self, dismiss_secs: u64) -> usize {
+        self.entries.iter().filter(|e| !e.is_expired(dismiss_secs)).count()
     }
 }
 
-pub fn write_state(state_file: &Path, state: &FileState) -> Result<()> {
+pub fn read_history(state_file: &Path) -> HistoryState {
+    let content = match std::fs::read_to_string(state_file) {
+        Ok(c) => c,
+        Err(_) => return HistoryState { entries: vec![], selected: 0 },
+    };
+    // try new format
+    if let Ok(h) = serde_json::from_str::<HistoryState>(&content) {
+        return h;
+    }
+    // backward compat: old single-FileState format
+    if let Ok(fs) = serde_json::from_str::<FileState>(&content) {
+        return HistoryState { entries: vec![fs], selected: 0 };
+    }
+    HistoryState { entries: vec![], selected: 0 }
+}
+
+pub fn write_history(state_file: &Path, state: &HistoryState) -> Result<()> {
     let json = serde_json::to_string(state)?;
     std::fs::write(state_file, json)?;
     Ok(())
+}
+
+/// Convenience: read current non-expired entry
+pub fn read_state(state_file: &Path, dismiss_secs: u64) -> Option<FileState> {
+    let history = read_history(state_file);
+    history.current().filter(|e| !e.is_expired(dismiss_secs)).cloned()
 }
