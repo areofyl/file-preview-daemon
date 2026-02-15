@@ -1,0 +1,29 @@
+[package]
+name = "file-preview"
+version = "0.1.0"
+edition = "2021"
+description = "File preview daemon for Waybar — shows new files and lets you drag-and-drop them"
+license = "MIT"
+
+[[bin]]
+name = "file-preview"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+gtk4 = "0.10"
+gtk4-layer-shell = "0.7"
+inotify = "0.11"
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shellexpand = "3"
+toml = "0.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
