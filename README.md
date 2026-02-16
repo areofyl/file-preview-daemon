@@ -1,7 +1,7 @@
 # glance
 
 A file clipboard for Wayland — watches directories for new files and shows a transient widget in [Waybar](https://github.com/Alexays/Waybar).
-Click to copy the path, drag-and-drop into another app, or scroll through recent files.
+Click to open a dropdown menu with actions: drag-and-drop, open, edit, or copy the path.
 
 ![demo](demo.gif)
 
@@ -10,18 +10,18 @@ Click to copy the path, drag-and-drop into another app, or scroll through recent
 **Arch Linux:**
 
 ```sh
-sudo pacman -S gtk4 gtk4-layer-shell wl-clipboard
+sudo pacman -S gtk4 gtk4-layer-shell wl-clipboard swappy
 ```
 
 **Fedora:**
 
 ```sh
-sudo dnf install gtk4-devel gtk4-layer-shell-devel wl-clipboard
+sudo dnf install gtk4-devel gtk4-layer-shell-devel wl-clipboard swappy
 ```
 
 You also need a [Rust toolchain](https://rustup.rs/) and **Hyprland** (uses `hyprctl` for overlay placement).
 
-Optional: install [ripdrag](https://github.com/nik012003/ripdrag) for reliable Wayland drag-and-drop.
+[swappy](https://github.com/jtheoof/swappy) is a lightweight Wayland screenshot annotation tool used by the Edit button. If not installed, glance will fall back to opening files with your default app. You can also set a different editor in the config.
 
 ## Install
 
@@ -70,7 +70,7 @@ Add to your Waybar config (`~/.config/waybar/config.jsonc`):
     "return-type": "json",
     "interval": 1,
     "signal": 8,
-    "on-click": "glance drag",
+    "on-click": "glance menu",
     "on-click-right": "glance copy",
     "on-scroll-up": "glance scroll up",
     "on-scroll-down": "glance scroll down"
@@ -113,17 +113,36 @@ watch_dirs = ["~/Pictures/Screenshots", "~/Downloads"]
 # RTMIN+N signal to poke waybar
 signal_number = 8
 
-# auto-dismiss after N seconds
+# auto-dismiss the waybar widget after N seconds
 dismiss_seconds = 10
 
 # skip partial downloads etc.
 ignore_suffixes = [".part", ".crdownload", ".tmp"]
 
-# waybar bar height in px (for popup placement)
+# waybar bar height in px (for menu placement)
 bar_height = 57
 
 # number of files to remember in history
 history_size = 5
+
+# editor for the Edit button (default: swappy)
+# swappy is recommended for screenshot annotation
+editor = "swappy"
+
+# which buttons to show in the dropdown
+actions = ["drag", "open", "edit", "copy"]
+
+# auto-dismiss the dropdown after N seconds (0 = never)
+menu_dismiss_seconds = 8
+
+# customize menu appearance
+[menu_style]
+background = "rgba(30,30,46,0.95)"
+text_color = "#cdd6f4"
+secondary_color = "#a6adc8"
+button_background = "rgba(255,255,255,0.08)"
+button_hover = "rgba(255,255,255,0.15)"
+border_radius = 12
 ```
 
 ## Commands
@@ -132,9 +151,9 @@ history_size = 5
 glance init            # set up config, waybar module, CSS, and autostart
 glance watch           # run the inotify watcher (long-running)
 glance status          # JSON for waybar (called by exec)
+glance menu            # dropdown menu below waybar with actions
 glance copy            # wl-copy the latest file path
 glance drag            # drag-and-drop overlay at cursor
-glance bubble <path>   # floating thumbnail notification for a file
 glance scroll up|down  # navigate through file history
 ```
 
