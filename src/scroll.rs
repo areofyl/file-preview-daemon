@@ -15,6 +15,8 @@ pub fn run(cfg: &Config, direction: &str) -> Result<()> {
     })?;
     let _ = Command::new("pkill")
         .arg(format!("-RTMIN+{}", cfg.signal_number))
+        .arg("-x")
+        .arg("-o")
         .arg("waybar")
         .output();
     Ok(())
