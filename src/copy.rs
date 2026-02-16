@@ -5,8 +5,9 @@ use std::process::Command;
 
 pub fn run(cfg: &Config) -> Result<()> {
     let history = read_history(&Config::state_file());
-    if let Some(st) = history.current() {
-        if !st.is_expired(cfg.dismiss_seconds) && st.path.exists() {
+    let manually_scrolled = history.selected != 0;
+    if let Some(st) = history.current().filter(|e| manually_scrolled || !e.is_expired(cfg.dismiss_seconds)) {
+        if st.path.exists() {
             Command::new("wl-copy")
                 .arg(st.path.to_string_lossy().as_ref())
                 .output()?;
