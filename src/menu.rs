@@ -348,7 +348,11 @@ pub fn run(cfg: &Config) -> Result<()> {
             let editor = editor_cmd.clone();
             btn_edit.connect_clicked(move |_| {
                 let resolved = resolve_editor(&editor);
-                let _ = Command::new(&resolved).arg(&p).spawn();
+                if resolved == "swappy" {
+                    let _ = Command::new(&resolved).args(["-f"]).arg(&p).spawn();
+                } else {
+                    let _ = Command::new(&resolved).arg(&p).spawn();
+                }
                 std::process::exit(0);
             });
             actions.append(&btn_edit);
