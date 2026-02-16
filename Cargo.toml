@@ -1,6 +1,6 @@
 [package]
 name = "wayglance"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 description = "A file clipboard for Wayland — watches directories for new files and shows a transient Waybar widget with drag-and-drop, open, edit, and copy actions"
 license = "MIT"
