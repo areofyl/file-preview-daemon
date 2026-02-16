@@ -25,6 +25,18 @@ You also need a [Rust toolchain](https://rustup.rs/) and **Hyprland** (uses `hyp
 
 ## Install
 
+**From crates.io:**
+
+```sh
+cargo install wayglance
+```
+
+On Fedora, you may need to set `PKG_CONFIG_PATH` first:
+
+```sh
+PKG_CONFIG_PATH=/usr/lib64/pkgconfig cargo install wayglance
+```
+
 **From source:**
 
 ```sh
