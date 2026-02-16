@@ -76,19 +76,28 @@ fn editor_prompted_path() -> std::path::PathBuf {
     config_dir.join("glance/.editor-prompted")
 }
 
-fn editor_exists(editor: &str) -> bool {
+fn editor_exists(bin: &str) -> bool {
     Command::new("which")
-        .arg(editor)
+        .arg(bin)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
 
-/// Check if the configured editor is available. If it's swappy and not installed,
+/// Parse the editor config string into (binary, args).
+fn parse_editor(editor: &str) -> (&str, Vec<&str>) {
+    let mut parts = editor.split_whitespace();
+    let bin = parts.next().unwrap_or("xdg-open");
+    let args: Vec<&str> = parts.collect();
+    (bin, args)
+}
+
+/// Check if the configured editor binary is available. If not installed,
 /// show a one-time notification and fall back to xdg-open.
-fn resolve_editor(editor: &str) -> String {
-    if editor_exists(editor) {
-        return editor.to_string();
+fn resolve_editor(editor: &str) -> (String, Vec<String>) {
+    let (bin, args) = parse_editor(editor);
+    if editor_exists(bin) {
+        return (bin.to_string(), args.iter().map(|s| s.to_string()).collect());
     }
 
     // only prompt once
@@ -99,8 +108,7 @@ fn resolve_editor(editor: &str) -> String {
         }
         let _ = std::fs::write(&prompted, "");
 
-        // show a desktop notification about the missing editor
-        let msg = if editor == "swappy" {
+        let msg = if bin == "swappy" {
             format!(
                 "swappy is not installed. Install it for screenshot editing:\n\
                  sudo dnf install swappy\n\n\
@@ -109,7 +117,7 @@ fn resolve_editor(editor: &str) -> String {
             )
         } else {
             format!(
-                "{editor} is not installed. Falling back to xdg-open.\n\
+                "{bin} is not installed. Falling back to xdg-open.\n\
                  You can change the editor in ~/.config/glance/config.toml"
             )
         };
@@ -118,7 +126,7 @@ fn resolve_editor(editor: &str) -> String {
             .spawn();
     }
 
-    "xdg-open".to_string()
+    ("xdg-open".to_string(), vec![])
 }
 
 fn build_css(cfg: &Config) -> String {
@@ -308,12 +316,8 @@ pub fn run(cfg: &Config) -> Result<()> {
             let editor = editor_cmd.clone();
             let a = app_handle.clone();
             btn_edit.connect_clicked(move |_| {
-                let resolved = resolve_editor(&editor);
-                if resolved == "swappy" {
-                    let _ = Command::new(&resolved).args(["-f"]).arg(&p).spawn();
-                } else {
-                    let _ = Command::new(&resolved).arg(&p).spawn();
-                }
+                let (bin, args) = resolve_editor(&editor);
+                let _ = Command::new(&bin).args(&args).arg(&p).spawn();
                 a.quit();
             });
             actions.append(&btn_edit);
