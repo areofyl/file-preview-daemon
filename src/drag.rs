@@ -1,12 +1,12 @@
 use crate::config::Config;
 use crate::state::read_history;
+use crate::util::{cursor_pos, find_monitor_at};
 use anyhow::Result;
 use gtk4::gdk;
 use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
-use std::process::Command;
 use std::time::Duration;
 
 const OVERLAY_W: i32 = 200;
@@ -123,38 +123,4 @@ pub fn run(cfg: &Config) -> Result<()> {
 
     app.run_with_args::<&str>(&[]);
     Ok(())
-}
-
-fn cursor_pos() -> Option<(i32, i32)> {
-    let out = Command::new("hyprctl")
-        .arg("cursorpos")
-        .output()
-        .ok()?;
-    let text = String::from_utf8(out.stdout).ok()?;
-    let parts: Vec<&str> = text.trim().split(',').collect();
-    if parts.len() >= 2 {
-        Some((parts[0].trim().parse().ok()?, parts[1].trim().parse().ok()?))
-    } else {
-        None
-    }
-}
-
-fn find_monitor_at(gx: i32, gy: i32) -> Option<(String, i32, i32)> {
-    let out = Command::new("hyprctl")
-        .args(["monitors", "-j"])
-        .output()
-        .ok()?;
-    let text = String::from_utf8(out.stdout).ok()?;
-    let monitors: Vec<serde_json::Value> = serde_json::from_str(&text).ok()?;
-    for m in &monitors {
-        let name = m["name"].as_str()?;
-        let x = m["x"].as_i64()? as i32;
-        let y = m["y"].as_i64()? as i32;
-        let w = m["width"].as_i64()? as i32;
-        let h = m["height"].as_i64()? as i32;
-        if gx >= x && gx < x + w && gy >= y && gy < y + h {
-            return Some((name.to_string(), x, y));
-        }
-    }
-    None
 }
