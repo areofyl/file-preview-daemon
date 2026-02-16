@@ -186,6 +186,7 @@ pub fn run(cfg: &Config) -> Result<()> {
 
     app.connect_activate(move |app| {
         let win = gtk4::ApplicationWindow::new(app);
+        let app_handle = app.clone();
 
         win.init_layer_shell();
         win.set_layer(Layer::Overlay);
@@ -275,9 +276,11 @@ pub fn run(cfg: &Config) -> Result<()> {
                     &glib::Bytes::from(uri.as_bytes()),
                 ))
             });
+            let a = app_handle.clone();
             ds.connect_drag_end(move |_, _, _| {
+                let a = a.clone();
                 glib::timeout_add_local_once(Duration::from_millis(200), move || {
-                    std::process::exit(0);
+                    a.quit();
                 });
             });
             btn_drag.add_controller(ds);
@@ -289,9 +292,10 @@ pub fn run(cfg: &Config) -> Result<()> {
             let btn_open = gtk4::Button::with_label("Open");
             btn_open.add_css_class("menu-action");
             let p = filepath.clone();
+            let a = app_handle.clone();
             btn_open.connect_clicked(move |_| {
                 let _ = Command::new("xdg-open").arg(&p).spawn();
-                std::process::exit(0);
+                a.quit();
             });
             actions.append(&btn_open);
         }
@@ -302,6 +306,7 @@ pub fn run(cfg: &Config) -> Result<()> {
             btn_edit.add_css_class("menu-action");
             let p = filepath.clone();
             let editor = editor_cmd.clone();
+            let a = app_handle.clone();
             btn_edit.connect_clicked(move |_| {
                 let resolved = resolve_editor(&editor);
                 if resolved == "swappy" {
@@ -309,7 +314,7 @@ pub fn run(cfg: &Config) -> Result<()> {
                 } else {
                     let _ = Command::new(&resolved).arg(&p).spawn();
                 }
-                std::process::exit(0);
+                a.quit();
             });
             actions.append(&btn_edit);
         }
@@ -319,11 +324,12 @@ pub fn run(cfg: &Config) -> Result<()> {
             let btn_copy = gtk4::Button::with_label("Copy");
             btn_copy.add_css_class("menu-action");
             let p = filepath.clone();
+            let a = app_handle.clone();
             btn_copy.connect_clicked(move |_| {
                 let _ = Command::new("wl-copy")
                     .arg(p.to_string_lossy().as_ref())
                     .spawn();
-                std::process::exit(0);
+                a.quit();
             });
             actions.append(&btn_copy);
         }
@@ -337,8 +343,9 @@ pub fn run(cfg: &Config) -> Result<()> {
         header.append(&spacer);
         let btn_close = gtk4::Button::with_label("\u{2715}");
         btn_close.add_css_class("menu-close");
+        let a = app_handle.clone();
         btn_close.connect_clicked(move |_| {
-            std::process::exit(0);
+            a.quit();
         });
         header.append(&btn_close);
 
@@ -354,21 +361,25 @@ pub fn run(cfg: &Config) -> Result<()> {
         let scroll_ctl = gtk4::EventControllerScroll::new(
             gtk4::EventControllerScrollFlags::VERTICAL,
         );
+        let a = app_handle.clone();
         scroll_ctl.connect_scroll(move |_, _, dy| {
             let dir = if dy > 0.0 { "down" } else { "up" };
             // update history selection
             let _ = Command::new("glance").args(["scroll", dir]).output();
             // relaunch menu with new selection
             let _ = Command::new("glance").arg("menu").spawn();
-            std::process::exit(0);
+            a.quit();
+            glib::Propagation::Stop
         });
         win.add_controller(scroll_ctl);
 
         // escape to dismiss
         let key_ctl = gtk4::EventControllerKey::new();
+        let a = app_handle.clone();
         key_ctl.connect_key_pressed(move |_, keyval, _, _| {
             if keyval == gdk::Key::Escape {
-                std::process::exit(0);
+                a.quit();
+                glib::Propagation::Stop
             } else {
                 glib::Propagation::Proceed
             }
@@ -377,8 +388,9 @@ pub fn run(cfg: &Config) -> Result<()> {
 
         // auto-dismiss
         if menu_dismiss > 0 {
+            let a = app_handle.clone();
             glib::timeout_add_local_once(Duration::from_secs(menu_dismiss), move || {
-                std::process::exit(0);
+                a.quit();
             });
         }
     });
