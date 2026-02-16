@@ -111,6 +111,83 @@ fn write_menu_pid() {
     let _ = std::fs::write(menu_pid_path(), std::process::id().to_string());
 }
 
+fn editor_prompted_path() -> std::path::PathBuf {
+    let config_dir = std::env::var("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            std::path::PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".into()))
+                .join(".config")
+        });
+    config_dir.join("glance/.editor-prompted")
+}
+
+fn editor_exists(editor: &str) -> bool {
+    Command::new("which")
+        .arg(editor)
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Check if the configured editor is available. If it's swappy and not installed,
+/// show a one-time notification and fall back to xdg-open.
+fn resolve_editor(editor: &str) -> String {
+    if editor_exists(editor) {
+        return editor.to_string();
+    }
+
+    // only prompt once
+    let prompted = editor_prompted_path();
+    if !prompted.exists() {
+        if let Some(parent) = prompted.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&prompted, "");
+
+        // show a desktop notification about the missing editor
+        let msg = if editor == "swappy" {
+            format!(
+                "swappy is not installed. Install it for screenshot editing:\n\
+                 sudo dnf install swappy\n\n\
+                 Falling back to xdg-open. You can change the editor in\n\
+                 ~/.config/glance/config.toml"
+            )
+        } else {
+            format!(
+                "{editor} is not installed. Falling back to xdg-open.\n\
+                 You can change the editor in ~/.config/glance/config.toml"
+            )
+        };
+        let _ = Command::new("notify-send")
+            .args(["glance", &msg])
+            .spawn();
+    }
+
+    "xdg-open".to_string()
+}
+
+fn build_css(cfg: &Config) -> String {
+    let s = &cfg.menu_style;
+    format!(
+        "window {{ background: rgba(0,0,0,0.01); }} \
+         .menu {{ background: {bg}; border-radius: {br}px; padding: 10px; }} \
+         .menu-size {{ color: {sc}; font-size: 11px; margin-top: 2px; }} \
+         .menu-actions {{ margin-top: 8px; }} \
+         .menu-action {{ background: {bb}; color: {tc}; \
+           border: none; border-radius: 8px; padding: 6px 14px; min-height: 0; min-width: 0; }} \
+         .menu-action:hover {{ background: {bh}; }} \
+         .menu-close {{ background: none; border: none; color: {sc}; \
+           min-height: 0; min-width: 0; padding: 2px 6px; }} \
+         .menu-close:hover {{ color: #f38ba8; }}",
+        bg = s.background,
+        br = s.border_radius,
+        sc = s.secondary_color,
+        bb = s.button_background,
+        tc = s.text_color,
+        bh = s.button_hover,
+    )
+}
+
 pub fn run(cfg: &Config) -> Result<()> {
     let history = read_history(&Config::state_file());
     let Some(st) = history.current().filter(|e| !e.is_expired(cfg.dismiss_seconds)) else {
@@ -123,6 +200,13 @@ pub fn run(cfg: &Config) -> Result<()> {
     let filepath = st.path.clone();
     let filesize = st.size;
     let bar_height = cfg.bar_height;
+    let menu_dismiss = cfg.menu_dismiss_seconds;
+    let has_drag = cfg.has_action("drag");
+    let has_open = cfg.has_action("open");
+    let has_edit = cfg.has_action("edit");
+    let has_copy = cfg.has_action("copy");
+    let editor_cmd = cfg.editor.clone();
+    let css_str = build_css(cfg);
 
     // use saved module position if available, otherwise capture from cursor
     let pos_file = menu_pos_path();
@@ -177,18 +261,7 @@ pub fn run(cfg: &Config) -> Result<()> {
 
         let css = gtk4::CssProvider::new();
         #[allow(deprecated)]
-        css.load_from_data(
-            "window { background: rgba(0,0,0,0.01); } \
-             .menu { background: rgba(30,30,46,0.95); border-radius: 12px; padding: 10px; } \
-             .menu-size { color: #a6adc8; font-size: 11px; margin-top: 2px; } \
-             .menu-actions { margin-top: 8px; } \
-             .menu-action { background: rgba(255,255,255,0.08); color: #cdd6f4; \
-               border: none; border-radius: 8px; padding: 6px 14px; min-height: 0; min-width: 0; } \
-             .menu-action:hover { background: rgba(255,255,255,0.15); } \
-             .menu-close { background: none; border: none; color: #a6adc8; \
-               min-height: 0; min-width: 0; padding: 2px 6px; } \
-             .menu-close:hover { color: #f38ba8; }",
-        );
+        css.load_from_data(&css_str);
         gtk4::style_context_add_provider_for_display(
             &gdk::Display::default().unwrap(),
             &css,
@@ -231,49 +304,69 @@ pub fn run(cfg: &Config) -> Result<()> {
         actions.add_css_class("menu-actions");
         actions.set_halign(gtk4::Align::Center);
 
-        // Drag — uses a DragSource so you grab and drag directly from this button
-        let btn_drag = gtk4::Label::new(Some("Drag"));
-        btn_drag.add_css_class("menu-action");
-        btn_drag.set_size_request(60, -1);
-        let ds = gtk4::DragSource::new();
-        ds.set_actions(gdk::DragAction::COPY);
-        let file = gio::File::for_path(&filepath);
-        let uri = format!("{}\r\n", file.uri());
-        ds.connect_prepare(move |_, _, _| {
-            Some(gdk::ContentProvider::for_bytes(
-                "text/uri-list",
-                &glib::Bytes::from(uri.as_bytes()),
-            ))
-        });
-        ds.connect_drag_end(move |_, _, _| {
-            glib::timeout_add_local_once(Duration::from_millis(200), move || {
-                std::process::exit(0);
+        // Drag
+        if has_drag {
+            let btn_drag = gtk4::Label::new(Some("Drag"));
+            btn_drag.add_css_class("menu-action");
+            btn_drag.set_size_request(60, -1);
+            let ds = gtk4::DragSource::new();
+            ds.set_actions(gdk::DragAction::COPY);
+            let file = gio::File::for_path(&filepath);
+            let uri = format!("{}\r\n", file.uri());
+            ds.connect_prepare(move |_, _, _| {
+                Some(gdk::ContentProvider::for_bytes(
+                    "text/uri-list",
+                    &glib::Bytes::from(uri.as_bytes()),
+                ))
             });
-        });
-        btn_drag.add_controller(ds);
-        actions.append(&btn_drag);
+            ds.connect_drag_end(move |_, _, _| {
+                glib::timeout_add_local_once(Duration::from_millis(200), move || {
+                    std::process::exit(0);
+                });
+            });
+            btn_drag.add_controller(ds);
+            actions.append(&btn_drag);
+        }
 
         // Open
-        let btn_open = gtk4::Button::with_label("Open");
-        btn_open.add_css_class("menu-action");
-        let p = filepath.clone();
-        btn_open.connect_clicked(move |_| {
-            let _ = Command::new("xdg-open").arg(&p).spawn();
-            std::process::exit(0);
-        });
-        actions.append(&btn_open);
+        if has_open {
+            let btn_open = gtk4::Button::with_label("Open");
+            btn_open.add_css_class("menu-action");
+            let p = filepath.clone();
+            btn_open.connect_clicked(move |_| {
+                let _ = Command::new("xdg-open").arg(&p).spawn();
+                std::process::exit(0);
+            });
+            actions.append(&btn_open);
+        }
+
+        // Edit
+        if has_edit {
+            let btn_edit = gtk4::Button::with_label("Edit");
+            btn_edit.add_css_class("menu-action");
+            let p = filepath.clone();
+            let editor = editor_cmd.clone();
+            btn_edit.connect_clicked(move |_| {
+                let resolved = resolve_editor(&editor);
+                let _ = Command::new(&resolved).arg(&p).spawn();
+                std::process::exit(0);
+            });
+            actions.append(&btn_edit);
+        }
 
         // Copy
-        let btn_copy = gtk4::Button::with_label("Copy");
-        btn_copy.add_css_class("menu-action");
-        let p = filepath.clone();
-        btn_copy.connect_clicked(move |_| {
-            let _ = Command::new("wl-copy")
-                .arg(p.to_string_lossy().as_ref())
-                .spawn();
-            std::process::exit(0);
-        });
-        actions.append(&btn_copy);
+        if has_copy {
+            let btn_copy = gtk4::Button::with_label("Copy");
+            btn_copy.add_css_class("menu-action");
+            let p = filepath.clone();
+            btn_copy.connect_clicked(move |_| {
+                let _ = Command::new("wl-copy")
+                    .arg(p.to_string_lossy().as_ref())
+                    .spawn();
+                std::process::exit(0);
+            });
+            actions.append(&btn_copy);
+        }
 
         container.append(&actions);
 
@@ -308,10 +401,12 @@ pub fn run(cfg: &Config) -> Result<()> {
         });
         win.add_controller(key_ctl);
 
-        // auto-dismiss 8s
-        glib::timeout_add_local_once(Duration::from_secs(8), move || {
-            std::process::exit(0);
-        });
+        // auto-dismiss
+        if menu_dismiss > 0 {
+            glib::timeout_add_local_once(Duration::from_secs(menu_dismiss), move || {
+                std::process::exit(0);
+            });
+        }
     });
 
     app.run_with_args::<&str>(&[]);
