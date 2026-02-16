@@ -1,6 +1,6 @@
 # glance
 
-A file clipboard for Wayland — watches directories for new files and shows a transient widget in [Waybar](https://github.com/Alexays/Waybar).
+A file clipboard daemon for Wayland — watches directories for new files and shows a transient widget in [Waybar](https://github.com/Alexays/Waybar).
 Click to open a dropdown menu with actions: drag-and-drop, open, edit, or copy the path.
 
 ![demo](demo.gif)
