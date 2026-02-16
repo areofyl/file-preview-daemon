@@ -134,6 +134,7 @@ fn build_css(cfg: &Config) -> String {
     format!(
         "window {{ background: rgba(0,0,0,0.01); }} \
          .menu {{ background: {bg}; border-radius: {br}px; padding: 10px; }} \
+         .menu-name {{ color: {tc}; font-size: 12px; margin-top: 4px; }} \
          .menu-size {{ color: {sc}; font-size: 11px; margin-top: 2px; }} \
          .menu-actions {{ margin-top: 8px; }} \
          .menu-action {{ background: {bb}; color: {tc}; \
@@ -162,6 +163,7 @@ pub fn run(cfg: &Config) -> Result<()> {
     }
 
     let filepath = st.path.clone();
+    let filename = st.name.clone();
     let filesize = st.size;
     let bar_height = cfg.bar_height;
     let menu_dismiss = cfg.menu_dismiss_seconds;
@@ -258,6 +260,17 @@ pub fn run(cfg: &Config) -> Result<()> {
             icon.set_pixel_size(48);
             container.append(&icon);
         }
+
+        // file name
+        let display_name = if filename.len() > 24 {
+            format!("{}\u{2026}", &filename[..21])
+        } else {
+            filename.clone()
+        };
+        let name_label = gtk4::Label::new(Some(&display_name));
+        name_label.add_css_class("menu-name");
+        name_label.set_tooltip_text(Some(&filename));
+        container.append(&name_label);
 
         // file size
         let size_label = gtk4::Label::new(Some(&human_size(filesize)));
