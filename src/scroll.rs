@@ -8,8 +8,8 @@ pub fn run(cfg: &Config, direction: &str) -> Result<()> {
     let dir = direction.to_string();
     with_history(&state_file, |history| {
         match dir.as_str() {
-            "up" => history.select_prev(),
-            "down" => history.select_next(),
+            "up" => history.select_next(),
+            "down" => history.select_prev(),
             _ => {}
         }
     })?;
