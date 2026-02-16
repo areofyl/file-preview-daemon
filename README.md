@@ -91,7 +91,7 @@ Add to your Waybar config (`~/.config/waybar/config.jsonc`):
 "custom/glance": {
     "exec": "glance status",
     "return-type": "json",
-    "interval": "once",
+    "interval": 0,
     "signal": 8,
     "on-click": "glance menu",
     "on-click-right": "glance copy",
