@@ -382,9 +382,10 @@ pub fn run(cfg: &Config) -> Result<()> {
         scroll_ctl.connect_scroll(move |_, _, dy| {
             let dir = if dy > 0.0 { "down" } else { "up" };
             // update history selection
-            let _ = Command::new("glance").args(["scroll", dir]).output();
+            let bin = std::env::current_exe().unwrap_or_else(|_| "glance".into());
+            let _ = Command::new(&bin).args(["scroll", dir]).output();
             // relaunch menu with new selection
-            let _ = Command::new("glance").arg("menu").spawn();
+            let _ = Command::new(&bin).arg("menu").spawn();
             a.quit();
             glib::Propagation::Stop
         });
