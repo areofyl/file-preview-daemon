@@ -54,6 +54,8 @@ fn now_secs() -> u64 {
 fn signal_waybar(sig: u8) {
     let _ = Command::new("pkill")
         .arg(format!("-RTMIN+{sig}"))
+        .arg("-x")
+        .arg("-o")
         .arg("waybar")
         .output();
 }
