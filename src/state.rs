@@ -11,17 +11,35 @@ struct FileLock {
 
 impl FileLock {
     fn acquire(state_file: &Path) -> Result<Self> {
+        Self::acquire_timeout(state_file, std::time::Duration::from_secs(2))
+    }
+
+    fn acquire_timeout(state_file: &Path, timeout: std::time::Duration) -> Result<Self> {
         let lock_path = state_file.with_extension("lock");
         let file = File::options()
             .create(true)
             .write(true)
             .truncate(false)
             .open(&lock_path)?;
-        let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
-        if ret != 0 {
-            anyhow::bail!("failed to acquire lock on {}", lock_path.display());
+
+        // Try non-blocking first
+        let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+        if ret == 0 {
+            return Ok(Self { _file: file });
         }
-        Ok(Self { _file: file })
+
+        // Retry with timeout
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            let ret = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+            if ret == 0 {
+                return Ok(Self { _file: file });
+            }
+            if std::time::Instant::now() >= deadline {
+                anyhow::bail!("timed out acquiring lock on {}", lock_path.display());
+            }
+        }
     }
 }
 
