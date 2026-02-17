@@ -7,20 +7,24 @@ use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
+use std::process::Command;
 use std::time::Duration;
 
 const OVERLAY_W: i32 = 200;
 
-pub fn run(cfg: &Config) -> Result<()> {
-    let history = read_history(&Config::state_file());
-    let Some(st) = history.current().filter(|e| !e.is_expired(cfg.dismiss_seconds)) else {
-        return Ok(());
-    };
-    if !st.path.exists() {
-        return Ok(());
-    }
-    let filepath = st.path.clone();
+fn run_external(cmd: &str, path: &std::path::Path) -> Result<()> {
+    let mut parts = cmd.split_whitespace();
+    let bin = parts.next().unwrap_or("ripdrag");
+    let args: Vec<&str> = parts.collect();
+    let _ = Command::new(bin)
+        .args(&args)
+        .arg(path)
+        .spawn()?
+        .wait();
+    Ok(())
+}
 
+fn run_builtin(cfg: &Config, filepath: std::path::PathBuf) -> Result<()> {
     let (cursor_x, cursor_y) = cursor_pos().unwrap_or((800, 0));
     let monitor_info = find_monitor_at(cursor_x, cursor_y);
     let bar_height = cfg.bar_height;
@@ -37,7 +41,6 @@ pub fn run(cfg: &Config) -> Result<()> {
         win.set_anchor(Edge::Top, true);
         win.set_anchor(Edge::Left, true);
 
-        // pin to correct monitor and use monitor-local coords
         if let Some((ref mon_name, mon_x, _)) = monitor_info {
             let display = gdk::Display::default().unwrap();
             let monitors = display.monitors();
@@ -59,7 +62,6 @@ pub fn run(cfg: &Config) -> Result<()> {
         win.set_exclusive_zone(-1);
         win.set_namespace(Some("glance-drag"));
 
-        // near-invisible surface so Wayland routes pointer events
         let css = gtk4::CssProvider::new();
         #[allow(deprecated)]
         css.load_from_data(
@@ -75,7 +77,6 @@ pub fn run(cfg: &Config) -> Result<()> {
         let label = gtk4::Label::new(Some(" "));
         label.set_size_request(OVERLAY_W, bar_height);
 
-        // native GTK drag source
         let ds = gtk4::DragSource::new();
         ds.set_actions(gdk::DragAction::COPY);
 
@@ -101,7 +102,6 @@ pub fn run(cfg: &Config) -> Result<()> {
         win.set_child(Some(&label));
         win.present();
 
-        // escape to dismiss
         let key_ctl = gtk4::EventControllerKey::new();
         let app_ref = app.clone();
         key_ctl.connect_key_pressed(move |_, keyval, _, _| {
@@ -114,7 +114,6 @@ pub fn run(cfg: &Config) -> Result<()> {
         });
         win.add_controller(key_ctl);
 
-        // auto-dismiss 8s
         let app_ref = app.clone();
         glib::timeout_add_local_once(Duration::from_secs(8), move || {
             app_ref.quit();
@@ -123,4 +122,20 @@ pub fn run(cfg: &Config) -> Result<()> {
 
     app.run_with_args::<&str>(&[]);
     Ok(())
+}
+
+pub fn run(cfg: &Config) -> Result<()> {
+    let history = read_history(&Config::state_file());
+    let Some(st) = history.current().filter(|e| !e.is_expired(cfg.dismiss_seconds)) else {
+        return Ok(());
+    };
+    if !st.path.exists() {
+        return Ok(());
+    }
+
+    if cfg.drag_command == "builtin" {
+        run_builtin(cfg, st.path.clone())
+    } else {
+        run_external(&cfg.drag_command, &st.path)
+    }
 }
