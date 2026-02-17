@@ -4,9 +4,10 @@
 // Then add "custom/glance" to a bar position (e.g. "modules-right").
 {
     "custom/glance": {
-        "exec": "glance watch-status",
+        "exec": "glance status",
         "return-type": "json",
-        "restart-interval": 1,
+        "interval": 5,
+        "signal": 8,
         "on-click": "glance drag",
         "on-click-right": "glance copy",
         "on-scroll-up": "glance scroll up",

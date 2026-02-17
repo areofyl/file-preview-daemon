@@ -5,7 +5,7 @@ Click to open a dropdown menu with actions: drag-and-drop, open, edit, or copy t
 
 ## What's new in 0.4.0
 
-- **New `watch-status` command** — a long-lived process that watches the state file via inotify and outputs JSON to stdout on each change. Replaces signal-based (`SIGRTMIN+N`) and polling (`interval`) waybar updates with zero-overhead continuous output. Use `"exec": "glance watch-status"` with `"restart-interval": 1` in your waybar config.
+- **New `watch-status` command** — a long-lived process that watches the state file via inotify and outputs JSON to stdout on each change. Alternative to polling for setups where waybar signals work. Note: waybar's continuous exec mode blocks click/scroll handlers, so the default waybar config still uses `interval: 5` with `glance status`.
 - **Scroll keeps widget visible** — scrolling through file history now keeps the widget visible for `dismiss_seconds` after the last scroll, then dismisses normally. Previously, scrolling to a non-zero index kept it visible forever, and scrolling back to the newest file dismissed it immediately.
 
 <details>
@@ -100,9 +100,10 @@ Add to your Waybar config (`~/.config/waybar/config.jsonc`):
 
 ```jsonc
 "custom/glance": {
-    "exec": "/path/to/glance watch-status",
+    "exec": "/path/to/glance status",
     "return-type": "json",
-    "restart-interval": 1,
+    "interval": 5,
+    "signal": 8,
     "on-click": "/path/to/glance menu",
     "on-click-right": "/path/to/glance copy",
     "on-scroll-up": "/path/to/glance scroll up",
