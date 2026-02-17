@@ -11,13 +11,18 @@ pub fn run(cfg: &Config, index_override: Option<usize>) -> Result<()> {
     // use override if provided, otherwise use persisted selection
     let selected = index_override.unwrap_or(history.selected);
 
-    // if user manually scrolled (selected != 0), show regardless of expiry
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64();
+    let recently_scrolled = history.last_scroll > 0.0
+        && (now - history.last_scroll) < cfg.dismiss_seconds as f64;
     let manually_scrolled = selected != 0;
 
     let current = history
         .entries
         .get(selected)
-        .filter(|e| manually_scrolled || !e.is_expired(cfg.dismiss_seconds));
+        .filter(|e| manually_scrolled || recently_scrolled || !e.is_expired(cfg.dismiss_seconds));
 
     let active_count = history.entries.len();
 
