@@ -31,6 +31,11 @@ actions = ["drag", "open", "edit", "copy"]
 # auto-dismiss the dropdown menu after N seconds (0 = never)
 menu_dismiss_seconds = 8
 
+# drag command: "builtin" for GTK4 native drag overlay, or an external tool
+# use "ripdrag --and-exit" for better browser compatibility (XWayland)
+# install ripdrag: cargo install ripdrag
+drag_command = "builtin"
+
 # menu appearance
 [menu_style]
 background = "rgba(30,30,46,0.95)"
