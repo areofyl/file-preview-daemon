@@ -16,11 +16,26 @@ fn run_external(cmd: &str, path: &std::path::Path) -> Result<()> {
     let mut parts = cmd.split_whitespace();
     let bin = parts.next().unwrap_or("ripdrag");
     let args: Vec<&str> = parts.collect();
-    let _ = Command::new(bin)
+    let mut child = Command::new(bin)
         .args(&args)
         .arg(path)
-        .spawn()?
-        .wait();
+        .spawn()?;
+    // Wait with a timeout instead of blocking indefinitely
+    let timeout = Duration::from_secs(30);
+    let start = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(_) => break,
+        }
+    }
     Ok(())
 }
 
