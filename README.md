@@ -68,6 +68,13 @@ cargo build --release
 cp target/release/glance ~/.local/bin/
 ```
 
+**NixOS / Nix:**
+
+```sh
+nix profile install nixpkgs#glance
+# or add `pkgs.glance` to `environment.systemPackages` in configuration.nix
+```
+
 Then run the setup wizard:
 
 ```sh
